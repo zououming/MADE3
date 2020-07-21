@@ -21,6 +21,9 @@ def collect():
                                (red_upper[1], red_upper[2], red_upper[3]))
         hsv_red = cv2.bitwise_or(hsv_red1, hsv_red2)
 
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(10, 10))
+        hsv_red = cv2.dilate(hsv_red, kernel)
+
         thread_lock.release()
 
         cv2.imshow("1", frame)
@@ -38,10 +41,10 @@ def find_arrow(arrow_svm, direction):
     while model != "quit":
         thread_lock.acquire()
         red_contours, _ = cv2.findContours(hsv_red, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-        thread_lock.release()
         red_contours.sort(key=get_cnt_area, reverse=True)
+        box, _ = judge.find_arrow(red_contours, frame)
+        thread_lock.release()
 
-        box, _ = judge.find_arrow(red_contours, frame, arrow_svm)
 
         sum_time = 0
         if model == "find":
@@ -50,6 +53,16 @@ def find_arrow(arrow_svm, direction):
                 model = "adjust"
                 time.sleep(1)
 
+            # if sum_time >= act.find_max_time:
+            #     direction = "left"
+            #     act.turn_left(act.find_pwm_duty_cycle)
+            #     time.sleep(sum_time)
+            #     sum_time = 0
+            # elif sum_time <= -act.find_max_time:
+            #     direction = "right"
+            #     act.turn_right(act.find_pwm_duty_cycle)
+            #     time.sleep(sum_time)
+            #     sum_time = 0
             if direction == "right":
                 act.turn_right(act.find_pwm_duty_cycle)
                 time.sleep(act.find_time)
@@ -61,17 +74,6 @@ def find_arrow(arrow_svm, direction):
                 act.stop()
                 sum_time -= act.find_time
 
-            if sum_time >= act.find_max_time:
-                direction = "left"
-                act.turn_left(act.find_pwm_duty_cycle)
-                time.sleep(sum_time)
-                sum_time = 0
-            elif sum_time <= -act.find_max_time:
-                direction = "right"
-                act.turn_right(act.find_pwm_duty_cycle)
-                time.sleep(sum_time)
-                sum_time = 0
-
             time.sleep(act.find_time)
 
         if model == "adjust":
@@ -80,35 +82,34 @@ def find_arrow(arrow_svm, direction):
                 continue
             print("adj")
             center = (box[0] + box[2]) / 2
+            print("center:", center)
             if center < act.center_min:
                 act.turn_left(act.adj_pwm_duty_cycle)
-                time.sleep(0.1)
+                time.sleep(act.adj_time)
                 act.stop()
             elif center > act.center_max:
                 act.turn_right(act.adj_pwm_duty_cycle)
-                time.sleep(0.1)
+                time.sleep(act.adj_time)
                 act.stop()
             else:
                 print("quit")
                 model = "quit"
-            time.sleep(0.2)
+            time.sleep(act.find_time * 2)
 
 def is_destination(arrow_svm):
     global frame, hsv_red
 
     thread_lock.acquire()
     red_contours, _ = cv2.findContours(hsv_red, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    red_contours.sort(key=get_cnt_area, reverse=True)
+    box, contour_area = judge.find_arrow(red_contours, frame)
     thread_lock.release()
 
-    red_contours.sort(key=get_cnt_area, reverse=True)
-
-    box, contour = judge.find_arrow(red_contours, frame, arrow_svm)
-
-    if len(box) > 0 and cv2.contourArea(contour) > act.destination_area:
-        (x, y, w, h) = [int(v) for v in box]
-        center = (x + w) / 2  # 320 240
-
-        if center >= act.center_min and center <= act.center_max:
+    if len(box) > 0 and contour_area > act.destination_area:
+        # (x, y, w, h) = [int(v) for v in box]
+        # center = (x + w) / 2
+        #
+        # if center >= act.center_min and center <= act.center_max:
             return True
 
     return False
@@ -121,33 +122,35 @@ def start():
     find_arrow(arrow_svm, "left")
     print("find arrow!")
     adj_time = 0
-    last_time = 0
+    last_time = time.time()
     try:
         while 1:
             act.go_straight(act.straight_pwm_duty_cycle)
             act.update_distance()
 
             if (act.distance[0] < act.max_distance or act.distance[1] < act.max_distance) and is_destination(arrow_svm) is False:
-                last_time = time.time()
                 adj_time += act.avoid_return()
+                last_time = time.time()
             elif act.distance[0] < act.stop_distance and act.distance[1] < act.stop_distance:
                 act.stop()
                 print("reach destination!")
                 break
 
-            if time.time() - last_time > act.adj_time and time.time() - last_time < act.find_destination_time:
+            if time.time() - last_time > act.reset_time and time.time() - last_time < act.find_destination_time:
                 if adj_time > 0:
                     act.turn_right(act.find_pwm_duty_cycle)
-                    time.sleep(adj_time)
+                    time.sleep(adj_time / 2)
                     last_time = time.time()
+                    find_arrow(arrow_svm, "right")
                 elif adj_time < 0:
                     act.turn_left(act.find_pwm_duty_cycle)
-                    time.sleep(-adj_time)
+                    time.sleep(-adj_time / 2)
                     last_time = time.time()
+                    find_arrow(arrow_svm, "left")
                 adj_time = 0
-            elif time.time() - last_time > act.find_destination_time:
-                find_arrow(arrow_svm, "right")
-                last_time = time.time()
+            # elif time.time() - last_time > act.find_destination_time:
+            #     find_arrow(arrow_svm, "left")
+            #     last_time = time.time()
 
     except KeyboardInterrupt:
         act.end()

@@ -1,6 +1,5 @@
 #coding=utf-8
 import time
-import cv2
 import RPi.GPIO as GPIO
 
 class Action():
@@ -24,24 +23,25 @@ class Action():
 
     find_pwm_duty_cycle = 50
     adj_pwm_duty_cycle = 30
-    straight_pwm_duty_cycle = [25, 25]
+    straight_pwm_duty_cycle = [35, 35]
 
-    center_min = 90
-    center_max = 150
+    center_min = 60
+    center_max = 100
 
     find_time = 0.2
-    find_max_time = 6 * find_time
+    find_max_time = 5 * find_time
 
     turn_time = 0.1
     turn_right_max_time = 2
 
-    adj_time = 2
-    find_destination_time = 5
+    adj_time = 0.1
+    reset_time = 2.5
+    find_destination_time = 3
 
-    max_distance = 15
-    stop_distance = 10
+    max_distance = 20
+    stop_distance = 20
 
-    destination_area = 2000
+    destination_area = 20000
 
     def __init__(self):
         self.GPIO_init()

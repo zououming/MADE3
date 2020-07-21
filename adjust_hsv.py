@@ -54,6 +54,7 @@ def adjust_hsv():
     cap = cv2.VideoCapture(0)
     while cap.isOpened():
         _, img = cap.read()
+        img = cv2.resize(img, (240, 160))
         hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         cv2.namedWindow("1")
         cv2.imshow("1", img)
@@ -86,8 +87,11 @@ def adjust_hsv():
                                (red_upper[1], red_upper[2], red_upper[3]))
         hsv_red = cv2.bitwise_or(hsv_red1, hsv_red2)
 
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=(10,10))
+        dilate = cv2.dilate(hsv_red, kernel)
+
         cv2.imshow("green", hsv_green)
-        cv2.imshow("red", hsv_red)
+        cv2.imshow("red", dilate)
 
         key = cv2.waitKey(1)
         if key == 32 or key == 27:

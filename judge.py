@@ -6,9 +6,9 @@ def get_svm(path):
     svm = cv2.ml_SVM.load(path)
     return svm
 
-def find_arrow(red_contours, frame, arrow_svm):
+def find_arrow(red_contours, frame):
     arrow_box = []
-    contour = []
+    contour_area = 0
 
     for red_contour in red_contours:
         if cv2.contourArea(red_contour) < 1000:
@@ -22,7 +22,7 @@ def find_arrow(red_contours, frame, arrow_svm):
         img = frame[min_index[1]:max_index[1], min_index[0]:max_index[0]]
         shape = np.shape(img)
 
-        if shape[0] == 0 or shape[1] == 0 or arrow_judge(img, arrow_svm) is False:
+        if shape[0] == 0 or shape[1] == 0: # or arrow_judge(img, arrow_svm) is False:
             continue
 
         rate = float(shape[0]) / shape[1]
@@ -30,10 +30,10 @@ def find_arrow(red_contours, frame, arrow_svm):
         #     continue
 
         arrow_box = cv2.boundingRect(box)
-        contour = red_contour
+        contour_area = cv2.contourArea(red_contour)
         break
 
-    return arrow_box, contour
+    return arrow_box, contour_area
 
 def arrow_judge(img, svm):
     return True
